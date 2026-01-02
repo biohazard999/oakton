@@ -1,3 +1,17 @@
-# oakton
+# Oakton has been folded into the larger [JasperFx](https://github.com/jasperfx/jasperfx) project and is now part of the `JasperFx` Nuget package. For consumers of Marten/Wolverine, please update to the latest respective releases for .NET 10+ support and remove any Oakton packages.
 
-[![Gitter](https://badges.gitter.im/JasperFx/oakton.svg)](https://gitter.im/JasperFx/oakton?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# Oakton
+
+Parsing and Utilities for Command Line Tools in .Net
+
+[![Discord](https://img.shields.io/discord/1074998995086225460?color=blue&label=Chat%20on%20Discord)](https://discord.gg/WMxrvegf8H)
+
+Check out the [documentation](https://jasperfx.github.io/oakton);
+
+## Support Plans
+
+<div align="center">
+    <img src="https://www.jasperfx.net/wp-content/uploads/2023/07/logo-alt-min.png" alt="JasperFx logo" width="70%">
+</div>
+
+While Oakton is open source, [JasperFx Software offers paid support and consulting contracts](https://bit.ly/3szhwT2) for Oakton. 

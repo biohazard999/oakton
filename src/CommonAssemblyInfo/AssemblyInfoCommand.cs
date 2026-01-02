@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Text;
-using Baseline;
+using JasperFx.Core;
 using Oakton;
 
 namespace CommonAssemblyInfo

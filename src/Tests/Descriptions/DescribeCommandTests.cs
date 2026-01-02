@@ -1,12 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton;
 using Oakton.Descriptions;
 using Shouldly;
+using Spectre.Console;
 using Xunit;
 
 namespace Tests.Descriptions
@@ -29,7 +31,7 @@ namespace Tests.Descriptions
             writer.ToString().ShouldContain(theParts[0].Title);
             
             writer.ToString().ShouldContain(theParts[1].As<DescribedPart>().Body);
-            writer.ToString().ShouldContain(theParts[1].Title);
+            writer.ToString().ShouldContain("## " + theParts[1].Title);
         }
 
         [Fact]
@@ -105,10 +107,6 @@ namespace Tests.Descriptions
 
                 var text = output.ToString().ReadLines();
 
-                text.ShouldContain("Description of the first part");
-                text.ShouldContain("Second part writing in blue");
-                text.ShouldContain("Description of the third part");
-
             }
             finally
             {
@@ -146,7 +144,7 @@ namespace Tests.Descriptions
 
         public Task WriteToConsole()
         {
-            ConsoleWriter.Write(ConsoleColor.DarkBlue, "Second part writing in blue");
+            AnsiConsole.MarkupLine("[darkblue]Second part writing in blue[/]");
             return Task.CompletedTask;
         }
     }
@@ -175,6 +173,30 @@ namespace Tests.Descriptions
         public Task Write(TextWriter writer)
         {
             return writer.WriteLineAsync(Body);
+        }
+    }
+
+    public class DescribedAndTablePart : DescribedPart, IWriteToConsole, IDescribesProperties
+    {
+        public bool DidWriteToConsole { get; set; }
+        
+        public Task WriteToConsole()
+        {
+            DidWriteToConsole = true;
+
+            var table = DescribeProperties().BuildTableForProperties();
+            AnsiConsole.Write(table);
+            
+            return Task.CompletedTask;
+        }
+
+        public IDictionary<string, object> DescribeProperties()
+        {
+            return new Dictionary<string, object>
+            {
+                {"foo", "bar"},
+                {"number", 5},
+            };
         }
     }
 

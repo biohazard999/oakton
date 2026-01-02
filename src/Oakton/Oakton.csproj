@@ -1,44 +1,30 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <Description>Command Line Parsing and Execution</Description>
-    <AssemblyTitle>Oakton</AssemblyTitle>
-    <VersionPrefix>3.2.2</VersionPrefix>
-    <Authors>Jeremy D. Miller</Authors>
-    <TargetFrameworks>netcoreapp3.1;net5.0;netstandard2.0</TargetFrameworks>
-    <DebugType>portable</DebugType>
-    <AssemblyName>Oakton</AssemblyName>
-    <OutputType>Library</OutputType>
-    <PackageId>Oakton</PackageId>
-    <PackageTags>Command Line Parsing</PackageTags>
-    <PackageProjectUrl>https://jasperfx.github.io/oakton</PackageProjectUrl>
-    <PackageLicenseUrl>https://github.com/jasperfx/oakton/raw/master/LICENSE.TXT</PackageLicenseUrl>
-    <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>git://github.com/jasperfx/oakton</RepositoryUrl>
-    <PackageIconUrl>https://github.com/JasperFx/oakton/blob/master/documentation/content/images/title.png?raw=true</PackageIconUrl>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Baseline" Version="3.2.0" />
-    <PackageReference Include="BaselineTypeDiscovery" Version="1.1.2" />
-    <PackageReference Include="Spectre.Console" Version="0.40.0" />
-  </ItemGroup>
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-    <PackageReference Include="System.Console" Version="[4.3.0, 6.0.0)" />
-    <PackageReference Include="System.AppContext" Version="[4.3.0, 6.0.0)" />
-    <PackageReference Include="System.Reflection.TypeExtensions" Version="[4.3.0, 6.0.0)" />
-    <PackageReference Include="System.Reflection.Extensions" Version="[4.3.0, 6.0.0)" />
-    <PackageReference Include="System.Runtime.Loader" Version="[4.3.0, 6.0.0)" />
-    
-  </ItemGroup>
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netcoreapp3.1'">
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="[3.0.0,4.0.0)" />
-  </ItemGroup>
+    <PropertyGroup>
+        <Description>Command Line Parsing and Execution</Description>
+        <AssemblyTitle>Oakton</AssemblyTitle>
+        <PackageVersion>6.3.0</PackageVersion>
+        <Authors>Jeremy D. Miller</Authors>
+        <TargetFrameworks>net6.0;net7.0;net8.0;net9.0</TargetFrameworks>
+        <DebugType>portable</DebugType>
+        <AssemblyName>Oakton</AssemblyName>
+        <LangVersion>11.0</LangVersion>
+        <OutputType>Library</OutputType>
+        <PackageId>Oakton</PackageId>
+        <PackageTags>Command Line Parsing</PackageTags>
+        <PackageProjectUrl>https://jasperfx.github.io/oakton</PackageProjectUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryType>git</RepositoryType>
+        <RepositoryUrl>git://github.com/jasperfx/oakton</RepositoryUrl>
+        <PackageIconUrl>https://raw.githubusercontent.com/JasperFx/JasperFx.Core/main/jasperfx-logo.jpg?raw=true</PackageIconUrl>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="JasperFx.Core" Version="1.9.0" />
+        <PackageReference Include="Spectre.Console" Version="0.47.0" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="[6.0.0,10.0.0)" />
+    </ItemGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.0.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net5.0' ">
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="[5.0.0,)" />
-  </ItemGroup>
+    <ItemGroup>
+        <None Include="jasper-icon.png" Pack="true" PackagePath="" />
+    </ItemGroup>
 
 </Project>

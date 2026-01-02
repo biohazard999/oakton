@@ -1,7 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -27,7 +26,7 @@ namespace MvcApp
 
         public IConfiguration Configuration { get; }
 
-        // SAMPLE: ConfigureService-with-EnvironmentCheck
+        #region sample_ConfigureService_with_EnvironmentCheck
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
@@ -50,7 +49,7 @@ namespace MvcApp
             services.AddSingleton<IDescribedSystemPart, Describer2>();
             services.AddSingleton<IDescribedSystemPart, Describer3>();
         }
-        // ENDSAMPLE
+        #endregion
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
 #if NETCOREAPP2_2
@@ -74,12 +73,6 @@ namespace MvcApp
             app.UseStaticFiles();
             app.UseCookiePolicy();
 
-            app.UseMvc(routes =>
-            {
-                routes.MapRoute(
-                    name: "default",
-                    template: "{controller=Home}/{action=Index}/{id?}");
-            });
         }
     }
 }

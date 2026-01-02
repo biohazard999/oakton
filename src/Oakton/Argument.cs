@@ -1,74 +1,65 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Baseline;
-using Baseline.Conversion;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using Oakton.Internal.Conversion;
 using Oakton.Parsing;
-using Oakton.Reporting;
 
-namespace Oakton
+namespace Oakton;
+
+public class Argument : TokenHandlerBase
 {
-    public class Argument : TokenHandlerBase
+    private readonly MemberInfo _member;
+    protected Func<string, object> _converter;
+    private bool _isLatched;
+    private readonly Type _memberType;
+
+    public Argument(MemberInfo member, Conversions conversions) : base(member)
     {
-        private readonly MemberInfo _member;
-        private bool _isLatched;
-        protected Func<string, object> _converter;
-        private Type _memberType;
+        _member = member;
+        _memberType = member.GetMemberType();
+        _converter = conversions.FindConverter(_memberType);
+    }
 
-        public Argument(MemberInfo member, Conversions conversions) : base(member)
+    public override bool Handle(object input, Queue<string> tokens)
+    {
+        if (_isLatched)
         {
-            _member = member;
-            _memberType = member.GetMemberType();
-            _converter = conversions.FindConverter(_memberType);
+            return false;
         }
 
-        public ArgumentReport ToReport()
+        if (tokens.NextIsFlag())
         {
-            return new ArgumentReport
+            if (_memberType.IsNumeric())
             {
-                Description = Description,
-                Name = _member.Name.ToLower()
-            };
-        }
-
-        public override bool Handle(object input, Queue<string> tokens)
-        {
-            if (_isLatched) return false;
-
-            if (tokens.NextIsFlag())
-            {
-                if (_memberType.IsNumeric())
-                {
-                    if (!decimal.TryParse(tokens.Peek(), out var number))
-                    {
-                        return false;
-                    }
-                }
-                else
+                if (!decimal.TryParse(tokens.Peek(), out var number))
                 {
                     return false;
                 }
-
-                
             }
-
-            var value = _converter(tokens.Dequeue());
-            setValue(input, value);
-
-            _isLatched = true;
-
-            return true;
-        }
-
-        public override string ToUsageDescription()
-        {
-            var memberType = _member.GetMemberType();
-            if (memberType.GetTypeInfo().IsEnum)
+            else
             {
-                return Enum.GetNames(memberType).Join("|");
+                return false;
             }
-
-            return $"<{_member.Name.ToLower()}>";
         }
+
+        var value = _converter(tokens.Dequeue());
+        setValue(input, value);
+
+        _isLatched = true;
+
+        return true;
+    }
+
+    public override string ToUsageDescription()
+    {
+        var memberType = _member.GetMemberType();
+        if (memberType.GetTypeInfo().IsEnum)
+        {
+            return Enum.GetNames(memberType).Join("|");
+        }
+
+        return $"<{_member.Name.ToLower()}>";
     }
 }

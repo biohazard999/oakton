@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Reflection;
-using System.Reflection.Metadata.Ecma335;
 using System.Threading.Tasks;
 using Oakton;
 
@@ -8,7 +7,7 @@ namespace MultipleCommands
 {
     class Program
     {
-        // SAMPLE: MultipleCommands.Program.Main
+        #region sample_MultipleCommands.Program.Main
         static int Main(string[] args)
         {
             var executor = CommandExecutor.For(_ =>
@@ -20,10 +19,10 @@ namespace MultipleCommands
 
             return executor.Execute(args);
         }
-        // ENDSAMPLE
+        #endregion
 
             /*
-        // SAMPLE: MultipleCommands.Program.Main.Async
+        #region sample_MultipleCommands.Program.Main.Async
         static Task<int> Main(string[] args)
         {
             var executor = CommandExecutor.For(_ =>
@@ -35,11 +34,11 @@ namespace MultipleCommands
 
             return executor.ExecuteAsync(args);
         }
-        // ENDSAMPLE
+        #endregion
         */
     }
 
-    // SAMPLE: git-commands
+    #region sample_git_commands
     [Description("Switch branches or restore working tree files")]
     public class CheckoutCommand : OaktonAsyncCommand<CheckoutInput>
     {
@@ -58,9 +57,9 @@ namespace MultipleCommands
             return true;
         }
     }
-    // ENDSAMPLE
+    #endregion
 
-    // SAMPLE: CheckoutInput
+    #region sample_CheckoutInput
     public class CheckoutInput
     {
         [FlagAlias("create-branch",'b')]
@@ -70,10 +69,10 @@ namespace MultipleCommands
         
         public bool ForceFlag { get; set; }
     }
-    // ENDSAMPLE
+    #endregion
 
 
-    // SAMPLE: CleanInput
+    #region sample_CleanInput
     public class CleanInput
     {
         [Description("Do it now!")]
@@ -87,7 +86,7 @@ namespace MultipleCommands
         [Description("Remove only files ignored by Git")]
         public bool DoNoUseStandardIgnoreRulesFlag { get; set; }
     }
-    // ENDSAMPLE
+    #endregion
 
 
 }

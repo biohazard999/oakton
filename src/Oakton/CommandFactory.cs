@@ -1,338 +1,396 @@
-﻿using System;
+﻿using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using JasperFx.Core.TypeScanning;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Oakton.Help;
+using Oakton.Parsing;
+using Spectre.Console;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using Baseline;
-using Baseline.Reflection;
-using BaselineTypeDiscovery;
-using Oakton.Help;
-using Oakton.Parsing;
 
-namespace Oakton
+namespace Oakton;
+
+public class CommandFactory : ICommandFactory
 {
-    public class CommandFactory : ICommandFactory
+    private static readonly string[] _helpCommands = { "help", "?" };
+
+
+    private static readonly Regex regex = new("(?<name>.+)Command", RegexOptions.Compiled);
+
+    // Only used to disable the console writing on errors
+    private static bool _hasAppliedExtensions;
+    private readonly ICommandCreator _commandCreator;
+    private readonly LightweightCache<string, Type> _commandTypes = new();
+    private string _appName;
+
+    private Type _defaultCommand;
+
+    private readonly IList<Type> _extensionTypes = new List<Type>();
+
+    /// <summary>
+    ///     Perform some operation based on command inputs, before command construction
+    /// </summary>
+    public Action<string, object> BeforeBuild = null;
+
+    /// <summary>
+    ///     Alter the input object or the command object just before executing the command
+    /// </summary>
+    public Action<CommandRun> ConfigureRun = run => { };
+
+    public CommandFactory()
     {
-        private static readonly string[] _helpCommands = new []{"help", "?"}; 
-        private readonly LightweightCache<string, Type> _commandTypes = new LightweightCache<string, Type>();
-        private readonly ICommandCreator _commandCreator;
-        private string _appName;
+        _commandCreator = new ActivatorCommandCreator();
+    }
 
-        public CommandFactory()
+    public CommandFactory(ICommandCreator creator)
+    {
+        _commandCreator = creator;
+    }
+
+    /// <summary>
+    ///     Optionally designates the default command type. Useful if your console app only has one command
+    /// </summary>
+    public Type DefaultCommand
+    {
+        get => _defaultCommand ?? (_commandTypes.Count == 1 ? _commandTypes.Single() : null);
+        set
         {
-            _commandCreator = new ActivatorCommandCreator();
+            _defaultCommand = value;
+            if (value != null)
+            {
+                _commandTypes[CommandNameFor(value)] = value;
+            }
         }
+    }
 
-        public CommandFactory(ICommandCreator creator)
+    public CommandRun BuildRun(string commandLine)
+    {
+        var args = StringTokenizer.Tokenize(commandLine);
+        return BuildRun(args);
+    }
+
+    public CommandRun BuildRun(IEnumerable<string> args)
+    {
+        if (!args.Any())
         {
-            _commandCreator = creator;
-        }
-
-        /// <summary>
-        /// Perform some operation based on command inputs, before command construction
-        /// </summary>
-        public Action<string, object> BeforeBuild = null;
-
-        /// <summary>
-        /// Alter the input object or the command object just before executing the command
-        /// </summary>
-        public Action<CommandRun> ConfigureRun = run => { };
-
-        public CommandRun BuildRun(string commandLine)
-        {
-            var args = StringTokenizer.Tokenize(commandLine);
-            return BuildRun(args);
-        }
-
-        public CommandRun BuildRun(IEnumerable<string> args)
-        {
-
-            if (!args.Any())
+            if (DefaultCommand == null)
             {
-                if (DefaultCommand == null)
-                {
-                    return HelpRun(new Queue<string>());
-                }
-            }
-
-            args = ArgPreprocessor.Process(args);
-
-            var queue = new Queue<string>(args);
-
-            if (queue.Count == 0 && DefaultCommand != null)
-            {
-                return buildRun(queue, CommandNameFor(DefaultCommand));
-            }
-            
-            
-
-            var firstArg = queue.Peek().ToLowerInvariant();
-
-            if (_helpCommands.Contains(firstArg))
-            {
-                queue.Dequeue();
-
-                return HelpRun(queue);
-            }
-
-            if (_commandTypes.Has(firstArg))
-            {
-                queue.Dequeue();
-                return buildRun(queue, firstArg);
-            }
-            
-            if (DefaultCommand != null)
-            {
-                return buildRun(queue, CommandNameFor(DefaultCommand));
-            }
-            else
-            {
-                return InvalidCommandRun(firstArg);
+                return HelpRun(new Queue<string>());
             }
         }
 
+        args = ArgPreprocessor.Process(args);
 
-        public IEnumerable<Type> AllCommandTypes()
+        var queue = new Queue<string>(args);
+
+        if (queue.Count == 0 && DefaultCommand != null)
         {
-            return _commandTypes.GetAll();
+            return buildRun(queue, CommandNameFor(DefaultCommand));
         }
 
-        public CommandRun InvalidCommandRun(string commandName)
+        var firstArg = queue.Peek().ToLowerInvariant();
+
+        if (_helpCommands.Contains(firstArg))
         {
-            return new CommandRun()
+            queue.Dequeue();
+
+            return HelpRun(queue);
+        }
+
+        if (_commandTypes.Contains(firstArg))
+        {
+            queue.Dequeue();
+            return buildRun(queue, firstArg);
+        }
+
+        if (DefaultCommand != null)
+        {
+            return buildRun(queue, CommandNameFor(DefaultCommand));
+        }
+
+        return InvalidCommandRun(firstArg);
+    }
+
+    /// <summary>
+    ///     Add all the IOaktonCommand classes in the given assembly to the command runner
+    /// </summary>
+    /// <param name="assembly"></param>
+    public void RegisterCommands(Assembly assembly)
+    {
+        foreach (var type in assembly
+                     .GetExportedTypes()
+                     .Where(IsOaktonCommandType))
+            _commandTypes[CommandNameFor(type)] = type;
+
+        if (assembly.HasAttribute<OaktonCommandAssemblyAttribute>())
+        {
+            var att = assembly.GetAttribute<OaktonCommandAssemblyAttribute>();
+            if (att.ExtensionType != null)
             {
-                Command = new HelpCommand(),
-                Input = new HelpInput(){
-                    AppName = _appName,
-                    Name = commandName,
-                    CommandTypes = _commandTypes.GetAll(),
-                    InvalidCommandName = true
-                }
+                _extensionTypes.Add(att.ExtensionType);
+            }
+        }
+    }
+
+    public IEnumerable<IOaktonCommand> BuildAllCommands()
+    {
+        return _commandTypes.Select(x => _commandCreator.CreateCommand(x));
+    }
+
+    public void ApplyExtensions(IServiceCollection services)
+    {
+        try
+        {
+            foreach (var extensionType in _extensionTypes)
+            {
+                var extension = Activator.CreateInstance(extensionType) as IServiceRegistrations;
+                extension?.Configure(services);
+            }
+
+            _hasAppliedExtensions = true;
+        }
+        catch (Exception)
+        {
+            // Swallow the error
+            if (_hasAppliedExtensions)
+            {
+                return;
+            }
+
+            AnsiConsole.MarkupLine(
+                $"[red]Unable to apply Oakton extensions. Try adding IHostBuilder.{nameof(CommandLineHostingExtensions.ApplyOaktonExtensions)}(); to your bootstrapping code to apply Oakton extension loading[/]");
+        }
+    }
+
+    public void ApplyExtensions(IHostBuilder builder)
+    {
+        if (builder is PreBuiltHostBuilder) return;
+        
+        if (_extensionTypes.Any())
+        {
+            builder.ConfigureServices(ApplyExtensions);
+        }
+    }
+
+    public IEnumerable<Type> AllCommandTypes()
+    {
+        return _commandTypes;
+    }
+
+    public CommandRun InvalidCommandRun(string commandName)
+    {
+        return new CommandRun
+        {
+            Command = new HelpCommand(),
+            Input = new HelpInput
+            {
+                AppName = _appName,
+                Name = commandName,
+                CommandTypes = _commandTypes.ToArray(),
+                InvalidCommandName = true
+            }
+        };
+    }
+
+    private CommandRun buildRun(Queue<string> queue, string commandName)
+    {
+        try
+        {
+            object input = null;
+
+            if (BeforeBuild != null)
+            {
+                input = tryBeforeBuild(queue, commandName);
+            }
+
+            var command = Build(commandName);
+
+            input ??= command.Usages.BuildInput(queue, _commandCreator);
+            var run = new CommandRun
+            {
+                Command = command,
+                Input = input
             };
+
+            ConfigureRun(run);
+
+            return run;
+        }
+        catch (InvalidUsageException e)
+        {
+            AnsiConsole.MarkupLine("[red]Invalid usage[/]");
+
+            if (e.Message.IsNotEmpty())
+            {
+                AnsiConsole.MarkupLine($"[yellow]{e.Message.EscapeMarkup()}[/]");
+            }
+
+            Console.WriteLine();
+        }
+        catch (Exception e)
+        {
+            AnsiConsole.MarkupLine("[red]Error parsing input[/]");
+            AnsiConsole.WriteException(e);
+
+            Console.WriteLine();
         }
 
-        private CommandRun buildRun(Queue<string> queue, string commandName)
+        return HelpRun(commandName);
+    }
+
+    private object tryBeforeBuild(Queue<string> queue, string commandName)
+    {
+        var commandType = _commandTypes[commandName];
+
+        try
         {
-            try
-            {
-                object input = null;
-
-                if (BeforeBuild != null)
-                {
-                  input = tryBeforeBuild(queue, commandName);
-                }
-
-                var command = Build(commandName);
-
-                if (input == null)
-                {
-                  input = command.Usages.BuildInput(queue, _commandCreator);
-                }
-
-                var run = new CommandRun
-                       {
-                           Command = command,
-                           Input = input
-                       };
-
-                ConfigureRun(run);
-
-                return run;
-            }
-            catch (InvalidUsageException e)
-            {
-                ConsoleWriter.Write(ConsoleColor.Red, "Invalid usage");
-
-
-                if (e.Message.IsNotEmpty())
-                {
-                    ConsoleWriter.Write(ConsoleColor.Yellow, e.Message);
-                }
-
-                Console.WriteLine();
-            }
-            catch (Exception e)
-            {
-                ConsoleWriter.Write(ConsoleColor.Red, "Error parsing input");
-                ConsoleWriter.Write(ConsoleColor.Yellow, e.ToString());
-                
-                Console.WriteLine();
-            }
-
-            return HelpRun(commandName);
-        }
-
-        private object tryBeforeBuild(Queue<string> queue, string commandName)
-        {
-          var commandType = _commandTypes[commandName];
-
-          try
-          {
             var defaultConstructorCommand = new ActivatorCommandCreator().CreateCommand(commandType);
             var input = defaultConstructorCommand.Usages.BuildInput(queue, _commandCreator);
 
             BeforeBuild?.Invoke(commandName, input);
 
             return input;
-          }
-          catch (MissingMethodException)
-          {
+        }
+        catch (MissingMethodException)
+        {
             // Command has no default constructor - not possible to pre-configure from inputs.
             return null;
-          }
+        }
+    }
+
+    /// <summary>
+    ///     Add a single command type to the command runner
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void RegisterCommand<T>()
+    {
+        RegisterCommand(typeof(T));
+    }
+
+    /// <summary>
+    ///     Add a single command type to the command runner
+    /// </summary>
+    public void RegisterCommand(Type type)
+    {
+        if (!IsOaktonCommandType(type))
+        {
+            throw new ArgumentOutOfRangeException(nameof(type),
+                $"Type '{type.FullName}' does not inherit from either OaktonCommannd or OaktonAsyncCommand");
         }
 
-        /// <summary>
-        /// Add a single command type to the command runner
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        public void RegisterCommand<T>()
+        _commandTypes[CommandNameFor(type)] = type;
+    }
+
+    public static bool IsOaktonCommandType(Type type)
+    {
+        if (!type.IsConcrete())
         {
-            RegisterCommand(typeof(T));
-        }
-        
-        /// <summary>
-        /// Add a single command type to the command runner
-        /// </summary>
-        public void RegisterCommand(Type type)
-        {
-            if (!IsOaktonCommandType(type)) throw new ArgumentOutOfRangeException(nameof(type), $"Type '{type.FullName}' does not inherit from either OaktonCommannd or OaktonAsyncCommand");
-            _commandTypes[CommandNameFor(type)] = type;
+            return false;
         }
 
-        /// <summary>
-        /// Add all the IOaktonCommand classes in the given assembly to the command runner
-        /// </summary>
-        /// <param name="assembly"></param>
-        public void RegisterCommands(Assembly assembly)
+        return type.Closes(typeof(OaktonCommand<>)) || type.Closes(typeof(OaktonAsyncCommand<>));
+    }
+
+
+    public IOaktonCommand Build(string commandName)
+    {
+        return _commandCreator.CreateCommand(_commandTypes[commandName.ToLower()]);
+    }
+
+
+    public CommandRun HelpRun(string commandName)
+    {
+        return HelpRun(new Queue<string>(new[] { commandName }));
+    }
+
+    public virtual CommandRun HelpRun(Queue<string> queue)
+    {
+        var input = (HelpInput)new HelpCommand().Usages.BuildInput(queue, _commandCreator);
+        input.CommandTypes = _commandTypes.ToArray();
+
+        // Little hokey, but show the detailed help for the default command
+        if (DefaultCommand != null && input.CommandTypes.Count() == 1)
         {
-            assembly
-                .GetExportedTypes()
-                .Where(IsOaktonCommandType)
-                .Each(t => { _commandTypes[CommandNameFor(t)] = t; });
+            input.Name = CommandNameFor(DefaultCommand);
         }
 
-        public static bool IsOaktonCommandType(Type type)
+
+        if (input.Name.IsNotEmpty())
         {
-            if (!type.IsConcrete()) return false;
+            input.InvalidCommandName = true;
+            input.Name = input.Name.ToLowerInvariant();
 
-            return type.Closes(typeof(OaktonCommand<>)) || type.Closes(typeof(OaktonAsyncCommand<>));
-        }
-
-        private Type _defaultCommand = null;
-
-        /// <summary>
-        /// Optionally designates the default command type. Useful if your console app only has one command
-        /// </summary>
-        public Type DefaultCommand
-        {
-            get => _defaultCommand ?? (_commandTypes.Count == 1 ? _commandTypes.GetAll().Single() : null);
-            set
+            if (_commandTypes.TryFind(input.Name, out var type))
             {
-                _defaultCommand = value;
-                if (value != null) _commandTypes[CommandNameFor(value)] = value;
+                input.InvalidCommandName = false;
+
+                var cmd = _commandCreator.CreateCommand(type);
+
+                input.Usage = cmd.Usages;
             }
         }
 
-        public IEnumerable<IOaktonCommand> BuildAllCommands()
+        return new CommandRun
         {
-            return _commandTypes.Select(x => _commandCreator.CreateCommand(x));
+            Command = new HelpCommand(),
+            Input = input
+        };
+    }
+
+    public static string CommandNameFor(Type type)
+    {
+        var match = regex.Match(type.Name);
+        var name = type.Name;
+        if (match.Success)
+        {
+            name = match.Groups["name"].Value;
         }
 
+        type.ForAttribute<DescriptionAttribute>(att => name = att.Name ?? name);
 
-        public IOaktonCommand Build(string commandName)
+        return name.ToLower();
+    }
+
+    public static string DescriptionFor(Type type)
+    {
+        var description = type.FullName;
+        type.ForAttribute<DescriptionAttribute>(att => description = att.Description);
+
+        return description;
+    }
+
+    public void SetAppName(string appName)
+    {
+        _appName = appName;
+    }
+
+    /// <summary>
+    ///     Automatically discover any Oakton commands in assemblies marked as
+    ///     [assembly: OaktonCommandAssembly]. Also
+    /// </summary>
+    public void RegisterCommandsFromExtensionAssemblies()
+    {
+        var assemblies = AssemblyFinder
+            .FindAssemblies(a => a.HasAttribute<OaktonCommandAssemblyAttribute>() && !a.IsDynamic)
+            .Concat(AppDomain.CurrentDomain.GetAssemblies())
+            .Where(a => a.HasAttribute<OaktonCommandAssemblyAttribute>() && !a.IsDynamic)
+            .Distinct()
+            .ToArray();
+
+        foreach (var assembly in assemblies)
         {
-            return _commandCreator.CreateCommand(_commandTypes[commandName.ToLower()]);
-        }
-
-
-
-        public CommandRun HelpRun(string commandName)
-        {
-            return HelpRun(new Queue<string>(new []{commandName}));
-        }
-
-        public virtual CommandRun HelpRun(Queue<string> queue)
-        {
-            var input = (HelpInput) (new HelpCommand().Usages.BuildInput(queue, _commandCreator));
-            input.CommandTypes = _commandTypes.GetAll();
-
-            // Little hokey, but show the detailed help for the default command
-            if (DefaultCommand != null && input.CommandTypes.Count() == 1)
+            if (!_hasAppliedExtensions)
             {
-                input.Name = CommandNameFor(DefaultCommand);
+                AnsiConsole.MarkupLine($"[gray]Searching '{assembly.FullName}' for commands[/]");
             }
 
-
-            if (input.Name.IsNotEmpty())
-            {
-                input.InvalidCommandName = true;
-                input.Name = input.Name.ToLowerInvariant();
-                _commandTypes.WithValue(input.Name, type =>
-                {
-                    input.InvalidCommandName = false;
-
-                    var cmd = _commandCreator.CreateCommand(type);
-                    
-                    input.Usage = cmd.Usages;
-                });
-            }
-
-            return new CommandRun(){
-                Command = new HelpCommand(),
-                Input = input
-            };
-        }
-        
-
-        static readonly Regex regex = new Regex("(?<name>.+)Command",RegexOptions.Compiled);
-        public static string CommandNameFor(Type type)
-        {
-            
-            var match = regex.Match(type.Name);
-            var name = type.Name;
-            if(match.Success)
-            {
-                name = match.Groups["name"].Value;
-            }
-            
-            type.ForAttribute<DescriptionAttribute>(att => name = att.Name ?? name);
-
-            return name.ToLower();
+            RegisterCommands(assembly);
         }
 
-        public static string DescriptionFor(Type type)
-        {
-            var description = type.FullName;
-            type.ForAttribute<DescriptionAttribute>(att => description = att.Description);
-
-            return description;
-        }
-
-        public void SetAppName(string appName)
-        {
-            _appName = appName;
-        }
-        
-        /// <summary>
-        /// Automatically discover any Oakton commands in assemblies marked as
-        /// [assembly: OaktonCommandAssembly]. Also 
-        /// </summary>
-        /// <param name="applicationAssembly"></param>
-        public void RegisterCommandsFromExtensionAssemblies()
-        {
-            var assemblies = AssemblyFinder
-                .FindAssemblies(a => a.HasAttribute<OaktonCommandAssemblyAttribute>() && !a.IsDynamic,txt => { }, false)
-                .Concat(AppDomain.CurrentDomain.GetAssemblies())
-                .Where(a => a.HasAttribute<OaktonCommandAssemblyAttribute>() && !a.IsDynamic)
-                .Distinct()
-                .ToArray();
-
-            foreach (var assembly in assemblies)
-            {
-                Console.WriteLine($"Searching '{assembly.FullName}' for commands");
-                RegisterCommands(assembly);
-            }
-        }
+        AnsiConsole.WriteLine();
     }
 }

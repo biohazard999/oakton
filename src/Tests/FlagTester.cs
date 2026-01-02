@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
-using Baseline.Conversion;
-using Baseline.Reflection;
+using JasperFx.Core.Reflection;
 using Oakton;
+using Oakton.Internal.Conversion;
 using Oakton.Parsing;
 using Shouldly;
 using Xunit;
@@ -14,12 +14,12 @@ namespace Tests
     {
         private Flag forProp(Expression<Func<FlagTarget, object>> expression)
         {
-            return new Flag(expression.ToAccessor().InnerProperty, new Conversions());
+            return new Flag(ReflectionHelper.GetProperty(expression), new Conversions());
         }
 
         private EnumerableFlag forArg(Expression<Func<FlagTarget, object>> expression)
         {
-            return new EnumerableFlag(expression.ToAccessor().InnerProperty, new Conversions());
+            return new EnumerableFlag(ReflectionHelper.GetProperty(expression), new Conversions());
         }
 
         [Fact]
@@ -63,7 +63,7 @@ namespace Tests
         {
             forArg(x => x.HerpDerpFlag)
                 .ToUsageDescription()
-                .ShouldBe("[-h, --herp-derp [<herpderp1 herpderp2 herpderp3 ...>]]");
+                .ShouldBe("[-h, --herp-derp <herpderp1 herpderp2 herpderp3 ...>]");
         }
 
         [Fact]
@@ -122,7 +122,7 @@ namespace Tests
         {
             forArg(x => x.SlagFlag)
                 .ToUsageDescription()
-                .ShouldBe("[-s, --slag [<slag1 slag2 slag3 ...>]]");
+                .ShouldBe("[-s, --slag <slag1 slag2 slag3 ...>]");
         }
     }
 
@@ -157,12 +157,12 @@ namespace Tests
         public IEnumerable<string> SlagFlag { get; set; }
     }
 
-    // SAMPLE: FileInput
+    #region sample_FileInput
     public class FileInput
     {
         public string[] FilesFlag;
 
         public string[] DirectoriesFlag;
     }
-    // ENDSAMPLE
+    #endregion
 }

@@ -25,7 +25,18 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EnvironmentCheckDemonstrato
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkerService", "WorkerService\WorkerService.csproj", "{2E9B5960-EA33-4519-989C-5D9BFF2BCFEE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Net5WebApi", "Net5WebApi\Net5WebApi.csproj", "{59731519-F9A1-4FE2-9525-DDF4214D2E77}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalApi", "MinimalApi\MinimalApi.csproj", "{307092A0-7161-4FD0-9B4B-19A34F323C3A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNet6BootstrappedConsole", "DotNet6BootstrappedConsole\DotNet6BootstrappedConsole.csproj", "{4D564951-882F-4931-85DE-B24D72623C40}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OptsFileUsageDemo", "OptsFileUsageDemo\OptsFileUsageDemo.csproj", "{A0EA6072-88AB-493C-A955-55D73C33853D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionItems", "SolutionItems", "{3209057B-F40B-4474-BBBB-93B0B5E89E73}"
+	ProjectSection(SolutionItems) = preProject
+		..\.github\workflows\docs.yml = ..\.github\workflows\docs.yml
+		..\.github\workflows\dotnet.yml = ..\.github\workflows\dotnet.yml
+		..\.github\workflows\publish_nuget.yml = ..\.github\workflows\publish_nuget.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -77,10 +88,18 @@ Global
 		{2E9B5960-EA33-4519-989C-5D9BFF2BCFEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2E9B5960-EA33-4519-989C-5D9BFF2BCFEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2E9B5960-EA33-4519-989C-5D9BFF2BCFEE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{59731519-F9A1-4FE2-9525-DDF4214D2E77}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{59731519-F9A1-4FE2-9525-DDF4214D2E77}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{59731519-F9A1-4FE2-9525-DDF4214D2E77}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{59731519-F9A1-4FE2-9525-DDF4214D2E77}.Release|Any CPU.Build.0 = Release|Any CPU
+		{307092A0-7161-4FD0-9B4B-19A34F323C3A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{307092A0-7161-4FD0-9B4B-19A34F323C3A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{307092A0-7161-4FD0-9B4B-19A34F323C3A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{307092A0-7161-4FD0-9B4B-19A34F323C3A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4D564951-882F-4931-85DE-B24D72623C40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D564951-882F-4931-85DE-B24D72623C40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D564951-882F-4931-85DE-B24D72623C40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D564951-882F-4931-85DE-B24D72623C40}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0EA6072-88AB-493C-A955-55D73C33853D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0EA6072-88AB-493C-A955-55D73C33853D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0EA6072-88AB-493C-A955-55D73C33853D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0EA6072-88AB-493C-A955-55D73C33853D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

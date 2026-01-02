@@ -3,249 +3,224 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using Baseline;
-using Baseline.Expressions;
-using Baseline.Reflection;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Oakton.Parsing;
-using Oakton.Reporting;
+using Spectre.Console;
 
-namespace Oakton.Help
+namespace Oakton.Help;
+
+public class UsageGraph
 {
-    public class UsageGraph
+    private readonly List<ITokenHandler> _handlers;
+    private readonly Type _inputType;
+    private readonly IList<CommandUsage> _usages = new List<CommandUsage>();
+    private readonly Lazy<IEnumerable<CommandUsage>> _validUsages;
+
+    public UsageGraph(Type commandType)
     {
-        private readonly string _commandName;
-        private readonly Type _commandType;
-        private readonly IList<CommandUsage> _usages = new List<CommandUsage>();
-        private string _description;
-        private readonly Type _inputType;
-        private readonly List<ITokenHandler> _handlers;
-        private readonly Lazy<IEnumerable<CommandUsage>> _validUsages; 
+        _inputType = commandType.FindInterfaceThatCloses(typeof(IOaktonCommand<>)).GetTypeInfo()
+            .GetGenericArguments().First();
 
-        public UsageGraph(Type commandType)
+        CommandName = CommandFactory.CommandNameFor(commandType);
+        commandType.ForAttribute<DescriptionAttribute>(att => { Description = att.Description; });
+
+        if (Description == null)
         {
-            _commandType = commandType;
-            _inputType = commandType.FindInterfaceThatCloses(typeof (IOaktonCommand<>)).GetTypeInfo().GetGenericArguments().First();
-
-            _commandName = CommandFactory.CommandNameFor(commandType);
-            _commandType.ForAttribute<DescriptionAttribute>(att => { _description = att.Description; });
-
-            if (_description == null) _description = _commandType.Name;
-
-            _handlers = InputParser.GetHandlers(_inputType);
-
-            _validUsages = new Lazy<IEnumerable<CommandUsage>>(() => {
-                if (_usages.Any()) return _usages;
-
-                var usage = new CommandUsage()
-                {
-                    Description = _description,
-                    Arguments = _handlers.OfType<Argument>(),
-                    ValidFlags = _handlers.Where(x => !(x is Argument))
-                };
-
-                return new CommandUsage[]{usage};
-            });
+            Description = commandType.Name;
         }
 
-        public CommandReport ToReport(string appName)
-        {
-            return new CommandReport
-            {
-                Name = _commandName,
-                Description = _description,
-                Arguments = Arguments.Select(x => x.ToReport()).ToArray(),
-                Flags = Flags.Select(x => new FlagReport(x)).ToArray(),
-                Usages = Usages.Select(x => x.ToReport(appName, _commandName)).ToArray()
-            };
-        }
+        _handlers = InputParser.GetHandlers(_inputType);
 
-        public object BuildInput(Queue<string> tokens, ICommandCreator creator)
+        _validUsages = new Lazy<IEnumerable<CommandUsage>>(() =>
         {
-            var model = creator.CreateModel(_inputType);
-            var responding = new List<ITokenHandler>();
-
-            while (tokens.Any())
+            if (_usages.Any())
             {
-                var handler = _handlers.FirstOrDefault(h => h.Handle(model, tokens));
-                if (handler == null) throw new InvalidUsageException("Unknown argument or flag for value " + tokens.Peek());
-                responding.Add(handler);
+                return _usages;
             }
 
-            if (!IsValidUsage(responding))
+            var usage = new CommandUsage
             {
-                throw new InvalidUsageException();
-            }
-
-            return model;
-        }
-
-        public bool IsValidUsage(IEnumerable<ITokenHandler> handlers)
-        {
-            return _validUsages.Value.Any(x => x.IsValidUsage(handlers));       
-        }
-
-        public IEnumerable<ITokenHandler> Handlers => _handlers;
-
-        public string CommandName => _commandName;
-
-        public IEnumerable<Argument> Arguments => _handlers.OfType<Argument>();
-
-        public IEnumerable<ITokenHandler> Flags
-        {
-            get
-            {
-                return _handlers.Where(x => !(x is Argument));
-            }
-        }
-
-        public IEnumerable<CommandUsage> Usages => _validUsages.Value;
-
-        public string Description => _description;
-
-        public void WriteUsages(string appName)
-        {
-            if (!Usages.Any())
-            {
-                Console.WriteLine("No documentation for this command");
-                return;
-            }
-
-            Console.WriteLine(" Usages for '{0}' ({1})", _commandName, _description);
-
-            if (Usages.Count() == 1)
-            {
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine(" " + Usages.Single().ToUsage(appName, _commandName));
-                Console.ResetColor();
-            }
-            else
-            {
-                writeMultipleUsages(appName);
-            }
-
-            if(Arguments.Any())
-                writeArguments();
-
-
-            if (!Flags.Any()) return;
-
-            writeFlags();
-        }
-
-        private void writeMultipleUsages(string appName)
-        {
-            var usageReport = new TwoColumnReport("Usages"){
-                SecondColumnColor = ConsoleColor.Cyan
+                Description = Description,
+                Arguments = _handlers.OfType<Argument>(),
+                ValidFlags = _handlers.Where(x => !(x is Argument))
             };
 
-            Usages.OrderBy(x => x.Arguments.Count()).ThenBy(x => x.ValidFlags.Count()).Each(u =>
+            return new[] { usage };
+        });
+    }
+
+    public IEnumerable<ITokenHandler> Handlers => _handlers;
+
+    public string CommandName { get; }
+
+    public IEnumerable<Argument> Arguments => _handlers.OfType<Argument>();
+
+    public IEnumerable<ITokenHandler> Flags
+    {
+        get { return _handlers.Where(x => !(x is Argument)); }
+    }
+
+    public IEnumerable<CommandUsage> Usages => _validUsages.Value;
+
+    public string Description { get; private set; }
+
+    public object BuildInput(Queue<string> tokens, ICommandCreator creator)
+    {
+        var model = creator.CreateModel(_inputType);
+        var responding = new List<ITokenHandler>();
+
+        while (tokens.Any())
+        {
+            var handler = _handlers.FirstOrDefault(h => h.Handle(model, tokens));
+            if (handler == null)
             {
-                usageReport.Add(u.Description, u.ToUsage(appName, _commandName));
-            });
-
-            usageReport.Write();
-        }
-
-        private void writeArguments()
-        {
-            var argumentReport = new TwoColumnReport("Arguments");
-            Arguments.Each(x => argumentReport.Add(x.MemberName.ToLower(), x.Description));
-            argumentReport.Write();
-        }
-
-        private void writeFlags()
-        {
-            var flagReport = new TwoColumnReport("Flags");
-            Flags.Each(x => flagReport.Add(x.ToUsageDescription(), x.Description));
-            flagReport.Write();
-        }
-
-        public UsageExpression<T> AddUsage<T>(string description)
-        {
-            return new UsageExpression<T>(this, description);
-        } 
-
-        public class UsageExpression<T>
-        {
-            private readonly UsageGraph _parent;
-            private readonly CommandUsage _commandUsage;
-
-            public UsageExpression(UsageGraph parent, string description)
-            {
-                _parent = parent;
-
-                _commandUsage = new CommandUsage
-                {
-                    Description = description,
-                    Arguments = new Argument[0],
-                    ValidFlags = _parent.Handlers.Where(x => !x.GetType().CanBeCastTo<Argument>()).ToArray() // Hokum.
-                };
-
-                _parent._usages.Add(_commandUsage);
+                throw new InvalidUsageException("Unknown argument or flag for value " + tokens.Peek());
             }
 
-            
-            /// <summary>
-            /// The valid arguments for this command usage in exact order
-            /// </summary>
-            /// <param name="properties"></param>
-            /// <returns></returns>
-            public UsageExpression<T> Arguments(params Expression<Func<T, object>>[] properties)
-            {
-
-
-                _commandUsage.Arguments =
-                    properties.Select(
-                        expr =>
-                        {
-                            var member = FindMembers.Determine(expr).Last();
-
-                            return _parent.Handlers.FirstOrDefault(x => x.MemberName == member.Name);
-                        }).OfType
-                        <Argument>();
-
-                return this;
-            }
-
-            /// <summary>
-            /// Optional, use this to limit the flags that are valid with this usage.  If this method is not called,
-            /// the CLI support assumes that every possible flag from the input type is valid
-            /// </summary>
-            /// <param name="properties"></param>
-            public void ValidFlags(params Expression<Func<T, object>>[] properties)
-            {
-                _commandUsage.ValidFlags =
-                    properties.Select(
-                        expr =>
-                        {
-                            var finder = new Baseline.Expressions.FindMembers();
-                            finder.Visit(expr);
-                            var member = finder.Members.Last();
-
-                            return _parent.Handlers.FirstOrDefault(x => x.MemberName == member.Name);
-                        }).ToArray();
-            }
-
-
+            responding.Add(handler);
         }
 
-        public CommandUsage FindUsage(string description)
+        if (!IsValidUsage(responding))
         {
-            return _usages.FirstOrDefault(x => x.Description == description);
+            throw new InvalidUsageException();
+        }
+
+        return model;
+    }
+
+    public bool IsValidUsage(IEnumerable<ITokenHandler> handlers)
+    {
+        return _validUsages.Value.Any(x => x.IsValidUsage(handlers));
+    }
+
+    public void WriteUsages(string appName)
+    {
+        if (!Usages.Any())
+        {
+            AnsiConsole.MarkupLine("[gray]No documentation for this command[/]");
+            return;
+        }
+
+        var tree = new Tree(new Markup($"[bold]{CommandName}[/] - [italic]{Description}[/]"));
+
+        foreach (var usage in Usages)
+        {
+            var usageNode = tree.AddNode(usage.Description);
+            var text =
+                $"[italic]{appName} {CommandName}[/] {usage.Arguments.Select(x => x.ToUsageDescription()).Join(" ")}";
+            var execution = usageNode.AddNode(text);
+            foreach (var flag in usage.ValidFlags)
+                execution.AddNode(new Markup($"[cyan][{flag.ToUsageDescription()}][/]"));
+        }
+
+        AnsiConsole.Write(tree);
+        AnsiConsole.WriteLine();
+
+        var table = new Table
+        {
+            Border = TableBorder.SimpleHeavy
+        };
+
+        table.AddColumns("Usage", "Description");
+        table.Columns[0].Alignment = Justify.Right;
+
+        foreach (var argument in Arguments) table.AddRow(argument.MemberName.ToLower(), argument.Description);
+
+        foreach (var flag in Flags) table.AddRow("[" + flag.ToUsageDescription() + "]", flag.Description);
+
+        AnsiConsole.Write(table);
+    }
+
+    public UsageExpression<T> AddUsage<T>(string description)
+    {
+        return new UsageExpression<T>(this, description);
+    }
+
+    public CommandUsage FindUsage(string description)
+    {
+        return _usages.FirstOrDefault(x => x.Description == description);
+    }
+
+    public class UsageExpression<T>
+    {
+        private readonly CommandUsage _commandUsage;
+        private readonly UsageGraph _parent;
+
+        public UsageExpression(UsageGraph parent, string description)
+        {
+            _parent = parent;
+
+            _commandUsage = new CommandUsage
+            {
+                Description = description,
+                Arguments = new Argument[0],
+                ValidFlags = _parent.Handlers.Where(x => !x.GetType().CanBeCastTo<Argument>()).ToArray() // Hokum.
+            };
+
+            _parent._usages.Add(_commandUsage);
+        }
+
+        /// <summary>
+        ///     Just expresses that this usage has no arguments
+        /// </summary>
+        public UsageExpression<T> NoArguments()
+        {
+            return Arguments();
+        }
+
+
+        /// <summary>
+        ///     The valid arguments for this command usage in exact order
+        /// </summary>
+        /// <param name="properties"></param>
+        /// <returns></returns>
+        public UsageExpression<T> Arguments(params Expression<Func<T, object>>[] properties)
+        {
+            _commandUsage.Arguments =
+                properties.Select(
+                    expr =>
+                    {
+                        var member = FindMembers.Determine(expr).Last();
+
+                        return _parent.Handlers.FirstOrDefault(x => x.MemberName == member.Name);
+                    }).OfType
+                    <Argument>();
+
+            return this;
+        }
+
+        /// <summary>
+        ///     Optional, use this to limit the flags that are valid with this usage.  If this method is not called,
+        ///     the CLI support assumes that every possible flag from the input type is valid
+        /// </summary>
+        /// <param name="properties"></param>
+        public void ValidFlags(params Expression<Func<T, object>>[] properties)
+        {
+            _commandUsage.ValidFlags =
+                properties.Select(
+                    expr =>
+                    {
+                        var finder = new FindMembers();
+                        finder.Visit(expr);
+                        var member = finder.Members.Last();
+
+                        return _parent.Handlers.FirstOrDefault(x => x.MemberName == member.Name);
+                    }).ToArray();
         }
     }
+}
 
 #if !NET451
-    public static class ReflectionExtensions
+public static class ReflectionExtensions
+{
+    public static Type[] GetGenericArguments(this TypeInfo typeInfo)
     {
-        public static Type[] GetGenericArguments(this TypeInfo typeInfo)
-        {
-            var arguments = typeInfo.IsGenericTypeDefinition
-                ? typeInfo.GenericTypeParameters
-                : typeInfo.GenericTypeArguments;
+        var arguments = typeInfo.IsGenericTypeDefinition
+            ? typeInfo.GenericTypeParameters
+            : typeInfo.GenericTypeArguments;
 
-            return arguments.ToArray();
-        }
+        return arguments.ToArray();
     }
-#endif
 }
+#endif

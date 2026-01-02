@@ -1,20 +1,16 @@
-﻿using System;
+﻿using System.IO;
 using System.Linq;
-using Baseline;
+using JasperFx.Core;
 
-namespace Oakton.Parsing
+namespace Oakton.Parsing;
+
+public static class OptionReader
 {
-    public static class OptionReader
+    public static string Read(string file)
     {
-        public static string Read(string file)
-        {
-            return new FileSystem()
-                .ReadStringFromFile(file)
-                .ReadLines()
-                .Select(x => x.Trim())
-                .Where(x => x.IsNotEmpty())
-                .Join(" ");
-
-        }
+        return File.ReadAllLines(file)
+            .Select(x => x.Trim())
+            .Where(x => x.IsNotEmpty())
+            .Join(" ");
     }
 }

@@ -1,18 +1,16 @@
-﻿using Baseline;
-using System;
+﻿using System;
 
-namespace Oakton
+namespace Oakton;
+
+public class ActivatorCommandCreator : ICommandCreator
 {
-    public class ActivatorCommandCreator : ICommandCreator
+    public IOaktonCommand CreateCommand(Type commandType)
     {
-        public IOaktonCommand CreateCommand(Type commandType)
-        {
-            return Activator.CreateInstance(commandType).As<IOaktonCommand>();
-        }
+        return (IOaktonCommand)Activator.CreateInstance(commandType);
+    }
 
-        public object CreateModel(Type modelType)
-        {
-            return Activator.CreateInstance(modelType);
-        }
+    public object CreateModel(Type modelType)
+    {
+        return Activator.CreateInstance(modelType);
     }
 }

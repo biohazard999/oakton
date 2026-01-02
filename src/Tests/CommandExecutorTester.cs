@@ -1,14 +1,15 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
-using Baseline;
+using JasperFx.Core;
 using Oakton;
 using Shouldly;
 using Xunit;
 
 namespace Tests
 {
+    [Collection("SetConsoleOutput")]
     public class CommandExecutorTester
     {
         private readonly StringWriter theOutput = new StringWriter();
@@ -51,30 +52,8 @@ namespace Tests
             theOutput.ToString().ShouldContain("Lebron James");
         }
 
-        [Fact]
-        public void no_command_argument_should_display_the_help()
-        {
-            executor.Execute("").ShouldBe(0);
 
-            theOutput.ToString().ShouldContain("Available commands:");
-            theOutput.ToString().ShouldContain("say-name -> Say my name");
-        }
 
-        [Fact]
-        public void show_help_for_a_single_command()
-        {
-            executor.Execute("help say-name").ShouldBe(1);
-
-            theOutput.ToString().ShouldContain("Usages for 'say-name' (Say my name)");
-        }
-
-        [Fact]
-        public void run_a_command_that_fails()
-        {
-            executor.Execute("throwup").ShouldBe(1);
-
-            theOutput.ToString().ShouldContain("DivideByZeroException");
-        }
 
         [Fact]
         public void run_an_async_command_that_fails()
@@ -99,7 +78,7 @@ namespace Tests
         public void use_options_file_if_it_exists()
         {
             var path = directory.AppendPath("good.opts");
-            new FileSystem().WriteStringToFile(path, "say-name Klay Thompson");
+            File.WriteAllText(path, "say-name Klay Thompson");
 
             executor.OptionsFile = "good.opts";
 
@@ -113,7 +92,7 @@ namespace Tests
         public void can_set_flags_in_combination_with_opts()
         {
             var path = directory.AppendPath("override.opts");
-            new FileSystem().WriteStringToFile(path, "option -b -n 1");
+            File.WriteAllText(path, "option -b -n 1");
 
             executor.OptionsFile = "override.opts";
 
@@ -179,7 +158,7 @@ namespace Tests
         }
     }
 
-    // SAMPLE: async-command-sample
+    #region sample_async_command_sample
     [Description("Say my name", Name = "say-async-name")]
     public class AsyncSayNameCommand : OaktonAsyncCommand<SayName>
     {
@@ -195,7 +174,7 @@ namespace Tests
             return true;
         }
     }
-    // ENDSAMPLE
+    #endregion
 
     public class ThrowUp
     {

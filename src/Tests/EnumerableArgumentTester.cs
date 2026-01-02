@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
-using Baseline.Conversion;
-using Baseline.Reflection;
+using JasperFx.Core.Reflection;
 using Oakton;
+using Oakton.Internal.Conversion;
 using Oakton.Parsing;
 using Shouldly;
 using Xunit;
@@ -15,7 +15,7 @@ namespace Tests
     {
         private EnumerableArgument argFor(Expression<Func<EnumerableArgumentInput, object>> property)
         {
-            return new EnumerableArgument(property.ToAccessor().InnerProperty, new Conversions());
+            return new EnumerableArgument(ReflectionHelper.GetProperty(property), new Conversions());
         }
 
         [Fact]
@@ -33,8 +33,8 @@ namespace Tests
         [Fact]
         public void to_usage_description_with_a_simple_string_or_number_type()
         {
-            argFor(x => x.Names).ToUsageDescription().ShouldBe("[<names1 names2 names3 ...>]");
-            argFor(x => x.Ages).ToUsageDescription().ShouldBe("[<ages1 ages2 ages3 ...>]");
+            argFor(x => x.Names).ToUsageDescription().ShouldBe("<names1 names2 names3 ...>");
+            argFor(x => x.Ages).ToUsageDescription().ShouldBe("<ages1 ages2 ages3 ...>");
         }
 
         [Fact]
@@ -60,7 +60,7 @@ namespace Tests
 
     }
 
-    // SAMPLE: EnumerableArguments
+    #region sample_EnumerableArguments
     public class EnumerableArgumentInput
     {
         public IEnumerable<string> Names { get; set; }
@@ -73,5 +73,5 @@ namespace Tests
         public IEnumerable<int> Ages { get; set; }
 
     }
-    // ENDSAMPLE
+    #endregion
 }

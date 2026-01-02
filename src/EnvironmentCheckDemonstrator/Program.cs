@@ -1,29 +1,38 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Baseline.Dates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton;
 using Oakton.Descriptions;
 using Oakton.Environment;
+using Oakton.Resources;
 
 namespace EnvironmentCheckDemonstrator
 {
     class Program
     {
-        // SAMPLE: extending-describe
+        #region sample_extending_describe
         static Task<int> Main(string[] args)
         {
             return Host.CreateDefaultBuilder()
                 .ConfigureServices(services =>
                 {
+                    
                     for (int i = 0; i < 5; i++)
                     {
                         services.AddSingleton<IEnvironmentCheck>(new GoodEnvironmentCheck(i + 1));
                         services.AddSingleton<IEnvironmentCheck>(new BadEnvironmentCheck(i + 1));
-                        
+
+
+                        services.AddSingleton<IStatefulResource>(new FakeResource("Database", "Db " + (i + 1)));
                     }
+
+                    services.AddSingleton<IStatefulResource>(new FakeResource("Bad", "Blows Up")
+                    {
+                        Failure = new DivideByZeroException()
+                    });
+                    
                     services.CheckEnvironment("Inline, async check", async (services, token) =>
                     {
                         await Task.Delay(1.Milliseconds(), token);
@@ -43,7 +52,7 @@ namespace EnvironmentCheckDemonstrator
                 })
                 .RunOaktonCommands(args);
         }
-        // ENDSAMPLE
+        #endregion
     }
 
     public class GoodEnvironmentCheck : IEnvironmentCheck
